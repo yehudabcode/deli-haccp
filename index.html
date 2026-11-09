@@ -305,7 +305,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const fmt=n=>Number.isInteger(n)?String(n):String(Math.round(n*100)/100);
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
 
-try{const d=ls("deli.selDay");if(d!==null&&+d>=0&&+d<5)selDay=+d}catch(e){}
+try{const d=ls("haccp.selDay");if(d!==null&&+d>=0&&+d<5)selDay=+d}catch(e){}
 
 function linesFor(day){const l=(plan.days?.[day]?.lines)||{};
   return Object.entries(l).filter(([,v])=>v&&typeof v==="object").map(([id,v])=>({id,...v})).sort((a,b)=>(a.o||0)-(b.o||0))}
@@ -505,7 +505,7 @@ function addLine(pid){
 /* ---------- Persistence (Google Apps Script backend) ----------
    Connection settings live on each device (never in this public repo):
    API URL + device key (+ edit PIN for Yehuda / Eli). */
-const CFG_KEY="deli.config";
+const CFG_KEY="haccp.config";
 function getCfg(){try{return JSON.parse(ls(CFG_KEY)||"{}")}catch(e){return {}}}
 function setCfg(c){ls(CFG_KEY,JSON.stringify(c))}
 let cfg=getCfg(), pollTimer=null, lastTyping=0;
@@ -538,10 +538,10 @@ async function flush(){
   try{
     for(const [w,changes] of Object.entries(byWeek)){
       if(localMode){
-        let cur={};try{cur=JSON.parse(ls("deli.week."+w)||"{}")}catch(e){}
+        let cur={};try{cur=JSON.parse(ls("haccp.week."+w)||"{}")}catch(e){}
         cur.days=cur.days||{};
         for(const c of changes){cur.days[c.day]=cur.days[c.day]||{lines:{}};cur.days[c.day].lines[c.id]=c.line}
-        ls("deli.week."+w,JSON.stringify(cur));continue;
+        ls("haccp.week."+w,JSON.stringify(cur));continue;
       }
       await api("patch",null,{week:w,changes});
     }
@@ -577,8 +577,8 @@ async function fetchWeek(quiet){
 function loadWeek(){
   weekId=iso(monday);plan={days:{}};nextMon={lines:{}};
   if(localMode){
-    try{plan=JSON.parse(ls("deli.week."+weekId)||'{"days":{}}')}catch(e){plan={days:{}}}
-    try{nextMon=(JSON.parse(ls("deli.week."+iso(addDays(monday,7)))||'{"days":{}}').days||{}).mon||{lines:{}}}catch(e){}
+    try{plan=JSON.parse(ls("haccp.week."+weekId)||'{"days":{}}')}catch(e){plan={days:{}}}
+    try{nextMon=(JSON.parse(ls("haccp.week."+iso(addDays(monday,7)))||'{"days":{}}').days||{}).mon||{lines:{}}}catch(e){}
     render();return;
   }
   render();setStatus("Loading…");fetchWeek(false);
@@ -624,7 +624,7 @@ const BRINES={
   brine_down:{name:"Downstairs salt beef brine",sizes:[40,80]}
 };
 const NITRITE_LIMIT=150; // mg/kg added, GB
-let cureStrength=6; /* HACCP plan: Laycock cure 6% + 94% salt, max 2.5g per kg */ try{const c=+ls("deli.curePct");if(c>0)cureStrength=c}catch(e){}
+let cureStrength=6; /* HACCP plan: Laycock cure 6% + 94% salt, max 2.5g per kg */ try{const c=+ls("haccp.curePct");if(c>0)cureStrength=c}catch(e){}
 const brineState={}; // per-session top-up litres / size, not saved
 function brineOf(p,l){if(!p.brine)return null;return typeof p.brine==="string"?p.brine:p.brine[l.v||(p.variants||[])[0]]||null}
 function isCure(r){return /^cure\b/i.test(r.ing)}
@@ -651,7 +651,7 @@ function brineCard(bid,items){
 }
 function rauchCard(p,l,noEry){
   const kg=+l.qty, water=kg*0.5, tot=kg+water;
-  const t=+(ls("deli.rauchTarget")||0);
+  const t=+(ls("haccp.rauchTarget")||0);
   const cureG=t>0?t*tot/(cureStrength*10):null;
   const ery=noEry?[]:(recipes||[]).filter(r=>r.p===p.id&&r.st===stageOf(p,l)&&!r.step);
   return `<table><thead><tr><th></th><th>Equilibrium wet cure</th><th class="n">Weigh</th></tr></thead><tbody>
@@ -720,8 +720,8 @@ function renderWeigh(){
 $("openWeigh").onclick=()=>{$("weigh").hidden=false;renderWeigh();$("weigh").scrollIntoView({block:"start"});if(!localMode&&!recipes)loadRecipes()};
 $("weigh").addEventListener("change",e=>{const t=e.target,f=t.dataset.f;if(!f)return;
   if(f==="top"||f==="size"){const st=brineState[t.dataset.brine];st[f]=Math.max(0,+t.value||0)}
-  else if(f==="curePct"){const v=+t.value;if(v>0){cureStrength=v;ls("deli.curePct",String(v))}}
-  else if(f==="rauchTarget"){ls("deli.rauchTarget",String(Math.max(0,+t.value||0)))}
+  else if(f==="curePct"){const v=+t.value;if(v>0){cureStrength=v;ls("haccp.curePct",String(v))}}
+  else if(f==="rauchTarget"){ls("haccp.rauchTarget",String(Math.max(0,+t.value||0)))}
   renderWeigh()});
 $("weigh").addEventListener("click",e=>{if(e.target.id==="printWeigh"){document.body.dataset.print="weigh";window.print()}else if(e.target.id==="closeWeigh")$("weigh").hidden=true});
 
@@ -729,7 +729,7 @@ $("weigh").addEventListener("click",e=>{if(e.target.id==="printWeigh"){document.
 let records={}, recWeek=null; const recTimers={};
 async function loadRecords(){
   if(recWeek===weekId)return; const wk=weekId;
-  if(localMode){try{records=JSON.parse(ls("deli.rec."+wk)||"{}")}catch(e){records={}}recWeek=wk;return}
+  if(localMode){try{records=JSON.parse(ls("haccp.rec."+wk)||"{}")}catch(e){records={}}recWeek=wk;return}
   try{const j=await api("records",{week:wk});if(wk!==weekId)return;records={};(j.records||[]).forEach(r=>records[r.key]=r);recWeek=wk}
   catch(e){setStatus("Couldn't load tick list records.",true)}
 }
@@ -846,7 +846,7 @@ function saveRec(key){
   clearTimeout(recTimers[key]);
   recTimers[key]=setTimeout(async()=>{
     const rec=records[key];if(!rec)return;const sv=$("sv-"+key);
-    if(localMode){ls("deli.rec."+weekId,JSON.stringify(records));if(sv)sv.textContent="Saved on this device";return}
+    if(localMode){ls("haccp.rec."+weekId,JSON.stringify(records));if(sv)sv.textContent="Saved on this device";return}
     try{if(sv)sv.textContent="Saving…";await api("record",null,{record:rec});rec.updated=new Date().toISOString();if(sv)sv.textContent="Saved"}
     catch(e){if(sv)sv.textContent="Not saved, check connection";}
   },700);
@@ -897,7 +897,7 @@ $("cfgForm").addEventListener("submit",async e=>{
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&!localMode)fetchWeek(true)});
 
 /* ---------- Events ---------- */
-$("board").addEventListener("click",e=>{const d=e.target.closest(".day");if(!d)return;selDay=+d.dataset.day;ls("deli.selDay",String(selDay));render();
+$("board").addEventListener("click",e=>{const d=e.target.closest(".day");if(!d)return;selDay=+d.dataset.day;ls("haccp.selDay",String(selDay));render();
   if(window.matchMedia("(max-width:900px)").matches)$("panel").scrollIntoView({block:"start"})});
 $("entries").addEventListener("input",e=>{if(e.target.matches("input"))onField(e)});
 $("entries").addEventListener("change",e=>{if(e.target.matches("select"))onField(e);else if(e.target.dataset.f==="qty")render()});
